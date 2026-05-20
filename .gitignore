@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+.env
+.env.*
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+.DS_Store
+.idea/
+.claude/
+eval/results/
+*.json.bak
+eval/scripts/overhead_no_audit.json
+eval/scripts/overhead_with_audit.json
+failure_injection_figure_data.json

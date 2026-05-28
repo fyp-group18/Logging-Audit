@@ -14,63 +14,85 @@ This repository provides **methodological transparency**, not push-button reprod
 - A PostgreSQL 15+ database with the audit schema (`schemas/ddl_dump.sql`) and session data. The two source documents are publicly available in the [evaluation dataset](https://github.com/fyp-group18/aircraft-maintenance-rag-eval) and can be ingested via the companion application
 - The [evaluation dataset](https://github.com/fyp-group18/aircraft-maintenance-rag-eval) (pinned to commit [`27723ac`](https://github.com/fyp-group18/aircraft-maintenance-rag-eval/tree/27723ac8e9bef27ba61e8e2360c2b8a322a135ad))
 
-Experiment 1 (`run_eval_queries.py`) requires a live instance of the companion application to generate the session corpus. All other scripts — metric computation (Experiment 2) and failure injection (Experiment 3) — operate directly against the database.
+Corpus generation (`run_eval_queries.py`) requires a live instance of the companion application to generate the session corpus. All other scripts — provenance metrics and failure injection — operate directly against the database.
 
 ## Prerequisites
 
 - Python 3.11+
-- Access to a PostgreSQL 15+ database (with `pgvector`) populated by the companion application
+- PostgreSQL 15+ with `pgvector`, populated by the companion application
+- `psycopg[binary]` (v3) — installed via `requirements.txt`
 - Environment variable: `DATABASE_URL=postgresql://user:password@host:5432/dbname`
 
 ```bash
 pip install -r requirements.txt
 ```
 
-## Database Pipeline
-
-The `core/` directory contains the minimal database connection layer extracted from the companion application. It provides:
-
-- `SessionLocal()` — returns a new SQLAlchemy session; the engine is created lazily on first call
-- `with_db_retry` — retry decorator for transient DB errors (Neon cold starts)
-
-`DATABASE_URL` is read from the environment at first use, not at import time — modules can be imported, linted, and tested without a live database. The engine requires the `psycopg` (v3) driver.
-
-This is the only component extracted from the companion project. No application logic is included.
-
 ## Repository Structure
 
 ```
-├── core/                           # Database pipeline (extracted from companion project)
-│   ├── __init__.py
-│   └── database.py                 #   SessionLocal(), with_db_retry, lazy engine
-│
 ├── audit/                          # Metric computation (§Evaluation)
 │   ├── l1_metrics.py               #   Leaf Coverage@d, KB Reconstructability@t
+│   ├── l2_metrics.py               #   L2 response-chunk link metrics
+│   ├── l3_metrics.py               #   L3 feedback chain metrics
 │   ├── cross_layer_metrics.py      #   Provenance Completeness, Safety Provenance
+│   ├── c3_eval_metrics.py          #   C3 cross-layer evaluation metrics
 │   ├── manifest.py                 #   SHA-256 hash-chain append/verify
 │   └── process_mining.py           #   Token-replay fitness
 │
-├── eval/
-│   ├── queries/
-│   │   └── eval_queries.json       # 30 evaluation queries
-│   └── scripts/
-│       ├── select_eval_queries.py   # Deterministic query selection (SEED=42)
-│       ├── run_eval_queries.py      # Submit queries via SSE
-│       ├── select_injection_sessions.py
-│       ├── randomize_failures.py    # Failure assignment + SHA-256 manifest
-│       ├── apply_injection.py       # Apply/revert a single DB mutation
-│       ├── run_failure_injection.py # Orchestrate all injections
-│       ├── run_diagnostics.py       # Blinded diagnostic observation collection
-│       ├── score_and_unblind.py     # Unblind + confusion matrix + F1
-│       └── verify_reverts.py        # Post-experiment revert verification
+├── core/                           # Database and application layer
+│   ├── database.py                 #   SessionLocal(), with_db_retry, lazy engine
+│   ├── models.py                   #   SQLAlchemy ORM models
+│   ├── crud.py                     #   Database queries (semantic search, chunk retrieval)
+│   ├── config.py                   #   Configuration from environment variables
+│   └── ...                         #   hash_chain, eval_config, security, storage, utils
 │
-└── schemas/
-    └── ddl_dump.sql                # Full PostgreSQL DDL for 10 audit tables
+├── api/                            # FastAPI REST layer
+│   ├── agent_manager.py            #   LangGraph agent lifecycle
+│   ├── routers/                    #   diagnostics, evaluation, trace endpoints
+│   └── schemas.py                  #   Request/response models
+│
+├── pipeline/                       # LangGraph pipeline (12-node diagnostic workflow)
+│   ├── nodes.py                    #   Node implementations
+│   ├── workflow.py                 #   Graph construction
+│   ├── state.py                    #   State schema
+│   ├── eval_logic.py               #   Inline evaluation logic
+│   ├── safety_judge_gate.py        #   Safety classification gate
+│   └── telemetry.py                #   Execution telemetry
+│
+├── modules/                        # Retrieval modules (embeddings, reranking, MMR)
+│
+├── prompts/                        # System prompts for the pipeline
+│
+├── eval/
+│   ├── generation/
+│   │   ├── eval_queries.json       #   30-query evaluation corpus
+│   │   └── eval_queries_v2.json    #   150-query extended corpus
+│   ├── scripts/                    #   Evaluation pipeline (see sections below)
+│   ├── shared/                     #   Shared metric/stats utilities
+│   └── results/
+│       └── metrics/                #   Aggregated results (no raw data)
+│
+├── schemas/
+│   ├── ddl_dump.sql                #   PostgreSQL DDL for 10 audit tables
+│   └── data/                       #   Seed data + restore script (see below)
+│
+├── datasets/
+│   └── aircraft-maintenance-rag-eval  # Evaluation dataset (git submodule)
+│
+└── tests/                          # Unit tests
 ```
 
-## Experiment 1: Evaluation Query Execution
+## Application Layer
 
-Produces the 30-session corpus. All metrics are computed from this corpus.
+The `core/`, `api/`, `pipeline/`, `modules/`, and `prompts/` directories contain the LangGraph diagnostic decision-support system described in the paper. This code is included for reproducibility — corpus generation executes queries against this application to produce the session corpus.
+
+- `app.py` — FastAPI entry point (`uvicorn app:app`)
+- `core/database.py` — `SessionLocal()`, `with_db_retry`; `DATABASE_URL` is read lazily from the environment, requiring the `psycopg` (v3) driver
+- `pipeline/workflow.py` — constructs the 12-node LangGraph workflow
+
+## Corpus Generation
+
+Produces the 150-session corpus. All metrics are computed from this corpus.
 
 **Paper reference:** §III-A Evaluation Environment
 
@@ -78,11 +100,11 @@ Produces the 30-session corpus. All metrics are computed from this corpus.
 # Query selection (deterministic, SEED=42)
 python eval/scripts/select_eval_queries.py
 
-# Execute against the live application (only step that requires the running system)
-python eval/scripts/run_eval_queries.py --email <user> --password <password>
+# Execute against the live companion application
+python eval/scripts/run_eval_queries.py
 ```
 
-## Experiment 2: Metric Computation
+## Provenance Metrics
 
 **Paper reference:** §IV-A Metrics, §IV-B Provenance Reconstruction (Table III)
 
@@ -99,6 +121,10 @@ python -m audit.cross_layer_metrics
 
 # Process mining: Token-replay fitness
 python -m audit.process_mining
+
+# All metrics (provenance, feedback chain, failure injection,
+# identity triple, overhead)
+python -m eval.scripts.compute_metrics
 ```
 
 ### Reported results (Table III)
@@ -112,7 +138,7 @@ python -m audit.process_mining
 | Manifest integrity | 2/2 valid | `manifest.py` |
 | Process mining fitness | 1.0000 (27/27) | `process_mining.py` |
 
-## Experiment 3: Failure Injection Protocol
+## Failure Injection Protocol
 
 Adversarial integrity testing of the provenance architecture. 12 sessions (6 injected, 6 control), 4 failure types: chunk deletion, score perturbation, log gap, manifest tamper.
 
@@ -120,7 +146,7 @@ Adversarial integrity testing of the provenance architecture. 12 sessions (6 inj
 
 ### Protocol
 
-1. **Select sessions** from the 30-query corpus:
+1. **Select sessions** from the evaluation corpus:
    ```bash
    python eval/scripts/select_injection_sessions.py
    ```
@@ -135,7 +161,7 @@ Adversarial integrity testing of the provenance architecture. 12 sessions (6 inj
    python eval/scripts/run_failure_injection.py
    ```
 
-4. **Blinded diagnosis** — second researcher classifies sessions from exported artifacts only:
+4. **Blinded diagnosis** — evaluator classifies sessions from exported artifacts only:
    ```bash
    python eval/scripts/run_diagnostics.py
    ```
@@ -159,6 +185,24 @@ Adversarial integrity testing of the provenance architecture. 12 sessions (6 inj
 ### Integrity disclosure
 
 The injection designer and the blinded evaluator belong to the same research team. Blinding was procedural (randomized session order, sealed manifest), not organizational. Documented as threat (1) in the paper.
+
+## Human Evaluation
+
+One evaluator assessed all 150 responses across four dimensions (correctness, completeness, safety, overall) and 2,707 individual repair steps. The evaluation harness (`human_evaluate.py`) presented each response with retrieved chunks, inline evaluation verdicts, and a recommendation; the evaluator confirmed or overrode each verdict. As a single-evaluator design, no inter-rater reliability is reported; this is documented as a limitation in the paper.
+
+Evaluation data (response-level and step-level verdicts) and the computed metrics are available in `eval/results/metrics/`. Raw evaluation sheets containing production identifiers and copyrighted response text are excluded from this repository.
+
+## Seed Data
+
+`schemas/data/` contains structural metadata for the two evaluation documents and their chunks. Text content and embedding vectors have been stripped from `document_chunks_multimodal.csv.gz` for copyright reasons — the source documents are proprietary aircraft maintenance manuals. The retained columns (chunk ID, document ID, level, page range, section header, parent ID) are sufficient to verify provenance chain integrity and reproduce metric computation against a populated database.
+
+To restore the seed data into a local PostgreSQL instance:
+
+```bash
+bash schemas/data/restore.sh          # default: container=hitl_postgres, db=hitldss
+```
+
+To obtain the full chunk text, ingest the source documents using the included pipeline (`app.py`) with the publicly available [evaluation dataset](https://github.com/fyp-group18/aircraft-maintenance-rag-eval).
 
 ## Database Schema
 

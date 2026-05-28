@@ -30,9 +30,9 @@ _ALLOWED_TRANSITIONS: dict[str, set[str]] = {
     "RootCauseAnalyzer": {"SafetyExtractor", "__END__"},
     "SafetyExtractor": {"RepairPlanner"},
     "RepairPlanner": {"SafetyJudgeGate"},
-    "SafetyJudgeGate": {"InlineEvaluator", "RepairPlanner"},
+    "SafetyJudgeGate": {"InlineEvaluator", "RepairPlanner", "__END__"},
     "FollowUpResponder": {"InlineEvaluator"},
-    "InlineEvaluator": {"RepairPlanner", "__END__"},
+    "InlineEvaluator": {"__END__"},
 }
 
 # All node names in the model
@@ -158,20 +158,23 @@ def compute_process_fitness(min_sessions: int = 20) -> dict:
         rows = db.execute(
             text(
                 """
-                SELECT thread_id, node_name, started_at
+                SELECT trace_id, node_name, started_at
                 FROM agent_execution_logs
-                WHERE operation_type IN ('llm', 'node')
+                WHERE operation_type IN ('llm_call', 'node')
                   AND node_name IS NOT NULL
-                ORDER BY thread_id, started_at ASC
+                  AND trace_id IS NOT NULL
+                ORDER BY trace_id, started_at ASC
                 """
             )
         ).fetchall()
 
-    # Group by thread_id
+    # Group by trace_id, normalizing suffixed node names (e.g. "InlineEvaluator:unified")
+    _GRAPH_NODES = _ALL_NODES - {"__START__", "__END__"}
     traces: dict[str, list[str]] = defaultdict(list)
-    for thread_id, node_name, _ in rows:
-        if node_name in _ALL_NODES - {"__START__", "__END__"}:
-            traces[thread_id].append(node_name)
+    for trace_id, node_name, _ in rows:
+        base = node_name.split(":")[0] if ":" in node_name else node_name
+        if base in _GRAPH_NODES:
+            traces[trace_id].append(base)
 
     # Deduplicate consecutive repeated nodes (same node logged multiple times)
     deduped_traces: dict[str, list[str]] = {}
@@ -258,20 +261,23 @@ def compute_process_precision(min_sessions: int = 20) -> dict:
         rows = db.execute(
             text(
                 """
-                SELECT thread_id, node_name, started_at
+                SELECT trace_id, node_name, started_at
                 FROM agent_execution_logs
-                WHERE operation_type IN ('llm', 'node')
+                WHERE operation_type IN ('llm_call', 'node')
                   AND node_name IS NOT NULL
-                ORDER BY thread_id, started_at ASC
+                  AND trace_id IS NOT NULL
+                ORDER BY trace_id, started_at ASC
                 """
             )
         ).fetchall()
 
-    # Group and deduplicate
+    # Group and deduplicate, normalizing suffixed node names
+    _GRAPH_NODES = _ALL_NODES - {"__START__", "__END__"}
     traces: dict[str, list[str]] = defaultdict(list)
-    for thread_id, node_name, _ in rows:
-        if node_name in _ALL_NODES - {"__START__", "__END__"}:
-            traces[thread_id].append(node_name)
+    for trace_id, node_name, _ in rows:
+        base = node_name.split(":")[0] if ":" in node_name else node_name
+        if base in _GRAPH_NODES:
+            traces[trace_id].append(base)
 
     if len(traces) < min_sessions:
         return {

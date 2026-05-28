@@ -1,0 +1,98 @@
+{
+  "provenance_completeness": {
+    "resolved": 11004,
+    "total": 11004,
+    "percentage": 1.0
+  },
+  "per_variant": {
+    "unsafe_method_redirect": {
+      "total": 1968,
+      "resolved": 1968
+    },
+    "troubleshoot_full": {
+      "total": 4179,
+      "resolved": 4179
+    },
+    "replace_part": {
+      "total": 4857,
+      "resolved": 4857
+    }
+  },
+  "safety_provenance": {
+    "resolved": 11004,
+    "total": 3668,
+    "responses": 106
+  },
+  "kb_reconstructability": {
+    "87": {
+      "metric_name": "kb_reconstructability",
+      "value": 0.9878,
+      "value_type": "upper_bound",
+      "metadata": {
+        "document_id": 87,
+        "target_timestamp": "2026-05-26T11:01:41.712601+00:00",
+        "manifest_chunk_count": 4356,
+        "current_chunk_count": 4410,
+        "approximation": "count-based (individual chunk IDs not stored in manifest)"
+      }
+    },
+    "88": {
+      "metric_name": "kb_reconstructability",
+      "value": 0.9602,
+      "value_type": "upper_bound",
+      "metadata": {
+        "document_id": 88,
+        "target_timestamp": "2026-05-26T11:01:41.730739+00:00",
+        "manifest_chunk_count": 1303,
+        "current_chunk_count": 1357,
+        "approximation": "count-based (individual chunk IDs not stored in manifest)"
+      }
+    }
+  },
+  "leaf_coverage": {
+    "87": {
+      "metric_name": "leaf_coverage",
+      "value": 0.8813,
+      "metadata": {
+        "document_id": 87,
+        "levels": {
+          "0": 4356,
+          "1": 49,
+          "2": 5
+        },
+        "leaf_count": 4356,
+        "total_chunks": 4410,
+        "max_depth": 2,
+        "reachable_leaves": 3839
+      }
+    },
+    "88": {
+      "metric_name": "leaf_coverage",
+      "value": 0.855,
+      "metadata": {
+        "document_id": 88,
+        "levels": {
+          "0": 1303,
+          "1": 49,
+          "2": 5
+        },
+        "leaf_count": 1303,
+        "total_chunks": 1357,
+        "max_depth": 2,
+        "reachable_leaves": 1114
+      }
+    }
+  },
+  "process_mining_fitness": {
+    "metric_name": "process_fitness",
+    "value": 0.999,
+    "metadata": {
+      "sample_size": 264,
+      "consumed_transitions": 2035,
+      "deviant_transitions": 2,
+      "fully_conforming_traces": 262,
+      "conformance_rate": 0.9924
+    }
+  },
+  "recomputed_at": "20260527_095103"
+}

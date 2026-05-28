@@ -10,7 +10,7 @@ import os
 import threading
 
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, declarative_base
 from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
 logger = logging.getLogger("Database")
@@ -70,7 +70,31 @@ with_db_retry = retry(
 )
 
 
+DATABASE_URL_RAW = os.getenv("DATABASE_URL", "")
+DATABASE_URL = _normalize_url(DATABASE_URL_RAW) if DATABASE_URL_RAW else ""
+
+Base = declarative_base()
+
+
 def SessionLocal():
     """Return a new SQLAlchemy session, initializing the engine on first call."""
     _init_engine()
     return _SessionLocal()
+
+
+def get_db():
+    """FastAPI dependency that provides a database session per request."""
+    with SessionLocal() as db:
+        yield db
+
+
+@with_db_retry
+def init_db():
+    from sqlalchemy import text
+    from core.models import Base  # noqa: F811
+
+    _init_engine()
+    with _engine.connect() as conn:
+        conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        conn.commit()
+    Base.metadata.create_all(bind=_engine)

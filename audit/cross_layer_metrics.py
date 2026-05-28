@@ -216,6 +216,8 @@ def validate_l3_to_l2_fk_integrity() -> dict:
                     JOIN evaluation_metrics em
                         ON em.response_id = sf.response_id
                     WHERE sf.retracted = FALSE
+                      AND em.step_verdicts IS NOT NULL
+                      AND jsonb_typeof(em.step_verdicts) = 'array'
                 )
                 SELECT
                     COUNT(*) AS total,

@@ -1,19 +1,24 @@
 """
-Run all evaluation queries through the diagnostic pipeline sequentially.
+Run evaluation queries through the diagnostic pipeline sequentially.
 
-Reads eval_queries.json, skips PLACEHOLDER entries, handles follow-up sequencing
-(runs parent queries first, then follow-ups using captured thread_ids).
+Reads a query corpus JSON, skips PLACEHOLDER entries, handles follow-up
+sequencing (runs parent queries first, then follow-ups using captured
+thread_ids).
 
-Outputs eval_run_log.json with per-query results.
+Supports phased execution (--phase 1/2/all) and resume on crash (--resume).
 
 Usage:
-    cd backend && uv run python -m eval.generation.run_eval_queries \
+    python -m eval.scripts.run_eval_queries \
         --api-url http://localhost:8000 \
-        --email admin@example.com \
-        --password yourpassword \
-        --queries-file eval/generation/eval_queries.json \
-        --output eval/generation/eval_run_log.json \
-        --delay 2
+        --queries-file eval/generation/eval_queries_v2.json \
+        --output eval/results/eval_run_v2.json \
+        --phase all --delay 2
+
+    # Phase 2 standalone (after Phase 1):
+    python -m eval.scripts.run_eval_queries \
+        --phase 2 \
+        --parent-threads eval/results/eval_run_v2_phase1.json \
+        --output eval/results/eval_run_v2_phase2.json
 """
 
 from __future__ import annotations
@@ -26,29 +31,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 
-def login(api_url: str, email: str, password: str) -> str:
-    import httpx
-
-    response = httpx.post(
-        f"{api_url}/api/v1/auth/token",
-        data={"username": email, "password": password},
-        headers={"Content-Type": "application/x-www-form-urlencoded"},
-        timeout=60.0,
-    )
-    response.raise_for_status()
-    access_token = response.cookies.get("access_token")
-    if not access_token:
-        body = response.json()
-        access_token = body.get("access_token", "")
-    if not access_token:
-        print("ERROR: Could not extract access token from login response")
-        sys.exit(1)
-    return access_token
-
-
 def stream_query(
     api_url: str,
-    access_token: str,
     device_id: str,
     message: str,
     thread_id: str | None = None,
@@ -82,8 +66,7 @@ def stream_query(
             "POST",
             f"{api_url}/api/v1/diagnose/stream",
             json=payload,
-            cookies={"access_token": access_token},
-            timeout=180.0,
+            timeout=360.0,
         ) as response:
             response.raise_for_status()
             for line in response.iter_lines():
@@ -121,7 +104,7 @@ def stream_query(
 
 
 def poll_shadow_eval(
-    api_url: str, access_token: str, response_id: str, timeout_s: int = 60
+    api_url: str, response_id: str, timeout_s: int = 60
 ) -> dict | None:
     import httpx
 
@@ -130,7 +113,6 @@ def poll_shadow_eval(
         try:
             resp = httpx.get(
                 f"{api_url}/api/v1/evaluation/shadow/{response_id}",
-                cookies={"access_token": access_token},
                 timeout=30.0,
             )
             if resp.status_code == 200:
@@ -143,13 +125,12 @@ def poll_shadow_eval(
     return None
 
 
-def fetch_trace(api_url: str, access_token: str, response_id: str) -> dict | None:
+def fetch_trace(api_url: str, response_id: str) -> dict | None:
     import httpx
 
     try:
         resp = httpx.get(
             f"{api_url}/api/v1/trace/{response_id}",
-            cookies={"access_token": access_token},
             timeout=60.0,
         )
         if resp.status_code == 200:
@@ -161,7 +142,6 @@ def fetch_trace(api_url: str, access_token: str, response_id: str) -> dict | Non
 
 def run_single_query(
     api_url: str,
-    access_token: str,
     query: dict,
     thread_id_override: str | None = None,
 ) -> dict:
@@ -173,13 +153,13 @@ def run_single_query(
     message = query["query_text"]
     tid = thread_id_override or query.get("thread_id")
 
-    stream_result = stream_query(api_url, access_token, device_id, message, tid)
+    stream_result = stream_query(api_url, device_id, message, tid)
     stream_ms = int((time.time() - start) * 1000)
 
     # Poll shadow eval
     shadow_completed = False
     if stream_result["response_id"]:
-        shadow = poll_shadow_eval(api_url, access_token, stream_result["response_id"])
+        shadow = poll_shadow_eval(api_url, stream_result["response_id"])
         shadow_completed = shadow is not None and shadow.get("completed", False)
 
     # Fetch trace for variant/intent
@@ -190,7 +170,7 @@ def run_single_query(
     safety_found = False
 
     if stream_result["response_id"]:
-        trace = fetch_trace(api_url, access_token, stream_result["response_id"])
+        trace = fetch_trace(api_url, stream_result["response_id"])
         if trace:
             ir = trace.get("intent_routing", {})
             actual_intent = ir.get("intent")
@@ -238,95 +218,70 @@ def run_single_query(
     }
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Run all eval queries through the pipeline")
-    parser.add_argument("--api-url", default="http://localhost:8000")
-    parser.add_argument("--email", required=True)
-    parser.add_argument("--password", required=True)
-    parser.add_argument(
-        "--queries-file",
-        type=Path,
-        default=Path(__file__).parent / "eval_queries.json",
-    )
-    parser.add_argument(
-        "--output",
-        type=Path,
-        default=Path(__file__).parent / "eval_run_log.json",
-    )
-    parser.add_argument("--delay", type=float, default=2.0, help="Seconds between queries")
-    args = parser.parse_args()
-
-    with open(args.queries_file) as f:
-        all_queries = json.load(f)
-
-    # Separate into initial and follow-up queries
-    initial_queries = [q for q in all_queries if q["query_text"] != "PLACEHOLDER" and q.get("expected_trace_variant") != 2]
-    followup_queries = [q for q in all_queries if q["query_text"] != "PLACEHOLDER" and q.get("expected_trace_variant") == 2]
-    placeholder_count = sum(1 for q in all_queries if q["query_text"] == "PLACEHOLDER")
-
-    runnable = len(initial_queries) + len(followup_queries)
-    print(f"Loaded {len(all_queries)} queries: {len(initial_queries)} initial, {len(followup_queries)} follow-up, {placeholder_count} placeholders (skipped)")
-
-    if runnable == 0:
-        print("No runnable queries found. Fill in PLACEHOLDER entries first.")
-        sys.exit(1)
-
-    print(f"Logging in to {args.api_url}...")
-    token = login(args.api_url, args.email, args.password)
-    print("Authenticated.\n")
-
+def _run_phase(
+    queries: list[dict],
+    phase_label: str,
+    api_url: str,
+    delay: float,
+    thread_id_map: dict[str, str],
+    completed_ids: set[str],
+    is_followup: bool,
+) -> list[dict]:
+    """Execute a list of queries, returning results and updating thread_id_map."""
     results: list[dict] = []
-    thread_id_map: dict[str, str] = {}  # query_id → thread_id (for follow-up resolution)
+    total = len(queries)
+    skipped = 0
+    print(f"\n=== {phase_label}: {total} queries ===\n")
 
-    # Phase 1: Run initial queries
-    total = len(initial_queries)
-    print(f"=== Phase 1: Running {total} initial queries ===\n")
-    for i, query in enumerate(initial_queries, 1):
-        print(f"[{i}/{total}] {query['query_id']}: {query['query_text'][:60]}...", end=" ", flush=True)
-        result = run_single_query(args.api_url, token, query)
-        results.append(result)
-        print(f"{result['status']} ({result['stream_ms']}ms, badge={result['badge']})")
+    for i, query in enumerate(queries, 1):
+        qid = query["query_id"]
 
-        # Store thread_id for follow-up resolution
-        if result["thread_id"]:
-            thread_id_map[query["query_id"]] = result["thread_id"]
+        # Resume: skip already-completed queries
+        if qid in completed_ids:
+            skipped += 1
+            continue
 
-        if i < total:
-            time.sleep(args.delay)
-
-    # Phase 2: Run follow-up queries
-    if followup_queries:
-        print(f"\n=== Phase 2: Running {len(followup_queries)} follow-up queries ===\n")
-        for i, query in enumerate(followup_queries, 1):
+        # Follow-up: resolve parent thread_id
+        parent_thread_id = None
+        if is_followup:
             parent_id = query.get("parent_query_id")
             parent_thread_id = thread_id_map.get(parent_id) if parent_id else None
-
             if parent_id and not parent_thread_id:
-                print(f"[{i}/{len(followup_queries)}] {query['query_id']}: SKIP — parent {parent_id} has no thread_id")
+                print(f"[{i}/{total}] {qid}: SKIP — parent {parent_id} has no thread_id")
                 results.append({
-                    "query_id": query["query_id"],
+                    "query_id": qid,
                     "status": "FAIL",
                     "error": f"Parent query {parent_id} has no thread_id",
+                    "expected_intent": query["expected_intent"],
+                    "expected_trace_variant": query["expected_trace_variant"],
                     "started_at": datetime.now(timezone.utc).isoformat(),
                     "completed_at": datetime.now(timezone.utc).isoformat(),
                     "duration_ms": 0,
                 })
                 continue
 
-            print(f"[{i}/{len(followup_queries)}] {query['query_id']}: {query['query_text'][:60]}...", end=" ", flush=True)
-            result = run_single_query(args.api_url, token, query, thread_id_override=parent_thread_id)
-            results.append(result)
-            print(f"{result['status']} ({result['stream_ms']}ms, badge={result['badge']})")
+        print(f"[{i}/{total}] {qid}: {query['query_text'][:60]}...", end=" ", flush=True)
+        result = run_single_query(api_url, query, thread_id_override=parent_thread_id)
+        results.append(result)
+        print(f"{result['status']} ({result['stream_ms']}ms, badge={result['badge']})")
 
-            if i < len(followup_queries):
-                time.sleep(args.delay)
+        # Store thread_id for follow-up resolution
+        if result["thread_id"]:
+            thread_id_map[qid] = result["thread_id"]
 
-    # Save results
-    with open(args.output, "w") as f:
-        json.dump(results, f, indent=2)
-    print(f"\nResults saved to {args.output}")
+        if i < total:
+            time.sleep(delay)
 
-    # Print summary
+    if skipped:
+        print(f"  (Resumed: skipped {skipped} already-completed queries)")
+
+    return results
+
+
+def _print_summary(results: list[dict]) -> None:
+    """Print evaluation run summary."""
+    from collections import Counter
+
     print("\n" + "=" * 70)
     print("EVALUATION RUN SUMMARY")
     print("=" * 70)
@@ -347,7 +302,6 @@ def main() -> None:
     print(f"\n  Intent match:  {intent_match}/{len(results)}")
 
     # Badge distribution
-    from collections import Counter
     badges = Counter(r.get("badge") for r in results if r.get("badge"))
     print(f"  Badge distribution: {dict(badges)}")
 
@@ -369,6 +323,116 @@ def main() -> None:
         intent_ok = "Y" if r.get("actual_intent") == r.get("expected_intent") else "N"
         ms = str(r.get("stream_ms", "-"))
         print(f"{qid:10s} {status:6s} {badge:6s} {faith:>6s} {relev:>6s} {chunks:>6s} {intent_ok:>12s} {ms:>6s}")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Run eval queries through the pipeline")
+    parser.add_argument("--api-url", default="http://localhost:8000")
+    parser.add_argument(
+        "--queries-file",
+        type=Path,
+        default=Path(__file__).parent / "eval_queries.json",
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=Path(__file__).parent / "eval_run_log.json",
+    )
+    parser.add_argument("--delay", type=float, default=2.0, help="Seconds between queries")
+    parser.add_argument(
+        "--phase",
+        choices=["1", "2", "all"],
+        default="all",
+        help="Run phase 1 (initial), phase 2 (followup), or both",
+    )
+    parser.add_argument(
+        "--parent-threads",
+        type=Path,
+        default=None,
+        help="Phase 1 output file for thread_id resolution in standalone phase 2",
+    )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Skip query_ids already present in the output file",
+    )
+    args = parser.parse_args()
+
+    with open(args.queries_file) as f:
+        all_queries = json.load(f)
+
+    # Separate into initial and follow-up queries based on parent_query_id
+    initial_queries = [q for q in all_queries if q["query_text"] != "PLACEHOLDER" and not q.get("parent_query_id")]
+    followup_queries = [q for q in all_queries if q["query_text"] != "PLACEHOLDER" and q.get("parent_query_id")]
+    placeholder_count = sum(1 for q in all_queries if q["query_text"] == "PLACEHOLDER")
+
+    print(f"Loaded {len(all_queries)} queries: {len(initial_queries)} initial, "
+          f"{len(followup_queries)} follow-up, {placeholder_count} placeholders (skipped)")
+
+    # Determine which phases to run
+    run_phase1 = args.phase in ("1", "all")
+    run_phase2 = args.phase in ("2", "all")
+
+    if not run_phase1 and not run_phase2:
+        print("Nothing to run.")
+        sys.exit(1)
+
+    # Resume: load already-completed query_ids from output file
+    completed_ids: set[str] = set()
+    existing_results: list[dict] = []
+    if args.resume and args.output.exists():
+        with open(args.output) as f:
+            existing_results = json.load(f)
+        completed_ids = {r["query_id"] for r in existing_results if r.get("status") == "PASS"}
+        print(f"Resume: {len(completed_ids)} completed queries found in {args.output}")
+
+    # Build thread_id_map from parent-threads file (for standalone phase 2)
+    # or from existing results (for resume)
+    thread_id_map: dict[str, str] = {}
+    if args.parent_threads and args.parent_threads.exists():
+        with open(args.parent_threads) as f:
+            parent_results = json.load(f)
+        for r in parent_results:
+            if r.get("thread_id") and r.get("status") == "PASS":
+                thread_id_map[r["query_id"]] = r["thread_id"]
+        print(f"Loaded {len(thread_id_map)} parent thread_ids from {args.parent_threads}")
+    elif existing_results:
+        for r in existing_results:
+            if r.get("thread_id"):
+                thread_id_map[r["query_id"]] = r["thread_id"]
+
+    results: list[dict] = list(existing_results) if args.resume else []
+
+    # Phase 1: initial queries
+    if run_phase1:
+        phase1_results = _run_phase(
+            initial_queries, "Phase 1 (initial)", args.api_url, args.delay,
+            thread_id_map, completed_ids, is_followup=False,
+        )
+        results.extend(phase1_results)
+
+        # Incremental save after Phase 1
+        with open(args.output, "w") as f:
+            json.dump(results, f, indent=2)
+        print(f"\nPhase 1 results saved to {args.output}")
+
+    # Phase 2: follow-up queries
+    if run_phase2:
+        if not followup_queries:
+            print("\nNo follow-up queries to run.")
+        else:
+            phase2_results = _run_phase(
+                followup_queries, "Phase 2 (follow-up)", args.api_url, args.delay,
+                thread_id_map, completed_ids, is_followup=True,
+            )
+            results.extend(phase2_results)
+
+    # Save final results
+    with open(args.output, "w") as f:
+        json.dump(results, f, indent=2)
+    print(f"\nResults saved to {args.output}")
+
+    _print_summary(results)
 
 
 if __name__ == "__main__":

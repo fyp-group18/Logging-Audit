@@ -1,0 +1,3 @@
+[submodule "datasets/aircraft-maintenance-rag-eval"]
+	path = datasets/aircraft-maintenance-rag-eval
+	url = https://github.com/fyp-group18/aircraft-maintenance-rag-eval.git

@@ -15,3 +15,10 @@ eval/results/
 eval/scripts/overhead_no_audit.json
 eval/scripts/overhead_with_audit.json
 failure_injection_figure_data.json
+credentials.json
+
+# Logs
+*.log
+
+# Archived non-disclosed materials (credentials, raw eval data, internal docs)
+.archive/

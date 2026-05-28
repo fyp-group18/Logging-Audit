@@ -38,9 +38,9 @@ _ALLOWED_TRANSITIONS: dict[str, set[str]] = {
     "RootCauseAnalyzer": {"SafetyExtractor", "__END__"},
     "SafetyExtractor": {"RepairPlanner"},
     "RepairPlanner": {"SafetyJudgeGate"},
-    "SafetyJudgeGate": {"InlineEvaluator", "RepairPlanner"},
+    "SafetyJudgeGate": {"InlineEvaluator", "RepairPlanner", "__END__"},
     "FollowUpResponder": {"InlineEvaluator"},
-    "InlineEvaluator": {"RepairPlanner", "__END__"},
+    "InlineEvaluator": {"__END__"},
 }
 
 _ALL_NODES = set(_ALLOWED_TRANSITIONS.keys()) | {"__END__"}

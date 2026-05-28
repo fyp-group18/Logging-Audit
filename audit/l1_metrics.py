@@ -248,7 +248,7 @@ def compute_kb_reconstructability(document_id: int, as_of_timestamp: str | None 
         else:
             latest = db.execute(
                 text(
-                    "SELECT MAX(created_at) FROM ingestion_manifest "
+                    "SELECT MAX(entry_timestamp) FROM ingestion_manifest "
                     "WHERE document_id = :doc_id"
                 ),
                 {"doc_id": document_id},
@@ -262,8 +262,18 @@ def compute_kb_reconstructability(document_id: int, as_of_timestamp: str | None 
                         "error": "no manifest entries found",
                     },
                 }
-            # Use 1 hour before latest as the target
-            target_ts = (latest - timedelta(hours=1)).isoformat()
+            # Use the latest chunk_created timestamp for this doc if available,
+            # otherwise fall back to MAX - 1hr.  When all manifest entries share
+            # the same second (bulk ingestion), the 1-hr offset pushes the target
+            # before the chunk_created entry, causing a false miss.
+            chunk_ts = db.execute(
+                text(
+                    "SELECT MAX(entry_timestamp) FROM ingestion_manifest "
+                    "WHERE document_id = :doc_id AND entry_type = 'chunk_created'"
+                ),
+                {"doc_id": document_id},
+            ).scalar()
+            target_ts = (chunk_ts or (latest - timedelta(hours=1))).isoformat()
 
         # Get current chunk IDs for this document
         current_rows = db.execute(
@@ -285,7 +295,7 @@ def compute_kb_reconstructability(document_id: int, as_of_timestamp: str | None 
                 FROM ingestion_manifest
                 WHERE document_id = :doc_id
                   AND entry_type = 'chunk_created'
-                  AND created_at <= :target_ts::timestamptz
+                  AND entry_timestamp <= CAST(:target_ts AS timestamptz)
                 ORDER BY entry_sequence DESC
                 LIMIT 1
                 """

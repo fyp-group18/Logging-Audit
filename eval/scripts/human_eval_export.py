@@ -9,7 +9,7 @@ Produces:
   eval/results/human_eval/evaluator2_steps.csv          — step-level template (evaluator 2)
 
 Requires:
-  DATABASE_URL env var pointing to eval-provenance CloudSQL
+  DATABASE_URL env var pointing to the evaluation database
   eval/results/eval_run_v2.json (150-query corpus results)
   eval/generation/eval_queries_v2.json (query text corpus)
 """

@@ -114,7 +114,11 @@ The corpus used in the paper is `eval/generation/eval_queries_v2.json` — 150 q
 
 The per-variant counts in Table II are the **observed** trace variants of the executed run, not a designed stratification; 148 of 150 sessions matched their intended route.
 
-`eval/scripts/select_eval_queries.py` is the **30-query pilot selector**. It produces `eval/generation/eval_queries.json`, not the 150-query corpus. Its input (`combined_eval_dataset.json`) is derived from the public evaluation dataset repository and is not redistributed here, so the script cannot be re-run from a clean clone; the pilot corpus it produced is shipped instead.
+`eval/scripts/select_eval_queries.py` is the **30-query pilot selector**. It produces `eval/generation/eval_queries.json`, not the 150-query corpus. Its selection input (`combined_eval_dataset.json`) is derived from the public evaluation dataset repository and is not redistributed here, so the selection itself cannot be re-run from a clean clone; the pilot corpus it produced is shipped instead. Run without `--force`, the script regenerates `eval_queries_coverage.md` from that shipped corpus, which reproduces the committed file byte for byte:
+
+```bash
+python -m eval.scripts.select_eval_queries
+```
 
 ```bash
 # Execute the corpus against the live companion application

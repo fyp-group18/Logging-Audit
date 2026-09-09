@@ -513,3 +513,41 @@ def compute_safety_tag_stats(document_id: int) -> dict:
             "total_signal_words": total_signal_words,
         },
     }
+
+
+def _main() -> int:
+    """CLI entry point: Layer 1 metrics for the evaluation documents.
+
+    Defaults to the two manuals used in the paper (document ids 87 and 88);
+    pass ``--document-id`` to override.
+    """
+    import argparse
+    import json
+    import os
+
+    parser = argparse.ArgumentParser(
+        description="Layer 1 metrics: Leaf Coverage@d, KB Reconstructability@t, manifest integrity"
+    )
+    parser.add_argument(
+        "--document-id", type=int, action="append", dest="document_ids",
+        help="Document id to report on (repeatable). Default: 87 and 88.",
+    )
+    args = parser.parse_args()
+
+    if not os.getenv("DATABASE_URL"):
+        print("DATABASE_URL is not set — export it before running this module.")
+        return 1
+
+    out = {}
+    for doc_id in args.document_ids or [87, 88]:
+        out[str(doc_id)] = {
+            "leaf_coverage": compute_leaf_coverage(doc_id),
+            "kb_reconstructability": compute_kb_reconstructability(doc_id),
+            "manifest_integrity": compute_manifest_integrity(doc_id),
+        }
+    print(json.dumps(out, indent=2, default=str))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(_main())

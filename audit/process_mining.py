@@ -199,16 +199,21 @@ def compute_process_fitness(min_sessions: int = 20) -> dict:
     total_consumed = 0
     total_deviations = 0
     conforming_traces = 0
+    # trace_id -> the edges that could not be replayed, so a non-conforming
+    # trace can be traced back to its session rather than only counted.
+    non_conforming: dict[str, list[str]] = {}
 
     for tid, trace in deduped_traces.items():
         consumed = 0
         deviations = 0
+        bad_edges: list[str] = []
 
         # Check start: first node should be reachable from __START__
         if trace and trace[0] in _ALLOWED_TRANSITIONS.get("__START__", set()):
             consumed += 1
         elif trace:
             deviations += 1
+            bad_edges.append(f"__START__ -> {trace[0]}")
 
         # Check each transition
         for i in range(len(trace) - 1):
@@ -219,17 +224,21 @@ def compute_process_fitness(min_sessions: int = 20) -> dict:
                 consumed += 1
             else:
                 deviations += 1
+                bad_edges.append(f"{current} -> {next_node}")
 
         # Check end: last node should be allowed to reach __END__
         if trace and "__END__" in _ALLOWED_TRANSITIONS.get(trace[-1], set()):
             consumed += 1
         elif trace:
             deviations += 1
+            bad_edges.append(f"{trace[-1]} -> __END__")
 
         total_consumed += consumed
         total_deviations += deviations
         if deviations == 0:
             conforming_traces += 1
+        else:
+            non_conforming[str(tid)] = bad_edges
 
     total = total_consumed + total_deviations
     fitness = total_consumed / total if total > 0 else 1.0
@@ -245,6 +254,7 @@ def compute_process_fitness(min_sessions: int = 20) -> dict:
             "conformance_rate": round(
                 conforming_traces / len(deduped_traces), 4
             ),
+            "non_conforming_traces": non_conforming,
         },
     }
 
@@ -479,3 +489,23 @@ def _chi_squared_test(
     p_value = float(chi2_dist.sf(chi2, df))
 
     return chi2, max(0.0, min(1.0, p_value))
+
+
+def _main() -> int:
+    """CLI entry point: token-replay fitness and precision over all logged traces."""
+    import json
+    import os
+
+    if not os.getenv("DATABASE_URL"):
+        print("DATABASE_URL is not set — export it before running this module.")
+        return 1
+
+    print(json.dumps({
+        "process_fitness": compute_process_fitness(),
+        "process_precision": compute_process_precision(),
+    }, indent=2, default=str))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(_main())

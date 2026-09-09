@@ -263,3 +263,29 @@ def validate_l3_to_l2_fk_integrity() -> dict:
             "no_eval_record": unmatched,
         },
     }
+
+
+def _main() -> int:
+    """CLI entry point: the corpus-wide cross-layer FK validations.
+
+    Provenance Completeness and Safety Provenance are reported per corpus
+    rather than per thread, and are computed by
+    ``eval.scripts.compute_metrics``; this entry point covers the two
+    validations that this module evaluates across the whole database.
+    """
+    import json
+    import os
+
+    if not os.getenv("DATABASE_URL"):
+        print("DATABASE_URL is not set — export it before running this module.")
+        return 1
+
+    print(json.dumps({
+        "l2_to_l1_fk_integrity": validate_l2_to_l1_fk_integrity(),
+        "l3_to_l2_fk_integrity": validate_l3_to_l2_fk_integrity(),
+    }, indent=2, default=str))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(_main())

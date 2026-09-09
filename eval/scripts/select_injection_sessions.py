@@ -1,15 +1,27 @@
 """
-Select 12 sessions from the eval run log for the failure injection protocol.
+Select 12 sessions for the failure injection protocol — 30-query pilot only.
+
+PILOT-ONLY. This script consumes the 30-query pilot corpus, in which
+expected_trace_variant is an INTEGER (variants 4 and 5 below). The 150-query
+corpus used elsewhere in the paper labels variants with STRINGS
+("followup", "replace_part", ...), so the variant filters here match nothing
+against it and the mandatory-slot logic is silently skipped. The 12 sessions
+reported in the paper were drawn from the pilot, which is why the protocol is
+documented against the pilot rather than the 150-session corpus.
 
 Filters for sessions with sufficient audit data (>=3 chunks, >=5 nodes, PASS status),
 then applies stratified sampling to ensure both intent types, safety-tagged sessions,
 and trace variants 4+5 are represented.
 
 Usage:
-    cd backend && uv run python -m eval.scripts.select_injection_sessions \
-        --run-log eval/results/eval_run_log.json \
-        --queries eval/queries/eval_queries.json \
+    python -m eval.scripts.select_injection_sessions \
+        --run-log <pilot run log> \
+        --queries eval/generation/eval_queries.json \
         --output eval/results/failure_injection/failure_injection_sessions.json
+
+    The pilot run log is not redistributed in this repository; the selected
+    sessions it produced are recorded in
+    eval/results/metrics/failure_injection.json.
 """
 
 from __future__ import annotations

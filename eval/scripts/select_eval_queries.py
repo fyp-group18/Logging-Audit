@@ -1,5 +1,10 @@
 """
-Select 30 evaluation queries from combined_eval_dataset.json.
+30-query pilot selector — produces eval/generation/eval_queries.json.
+
+This is NOT the generator for the 150-query corpus used in the paper. The
+150-query corpus is shipped as data at eval/generation/eval_queries_v2.json;
+no generator for it exists in this repository. This script selects the earlier
+30-query pilot from which the failure-injection sessions were drawn.
 
 Allocation: 23 from dataset (variants #3/#4/#5) + 7 manual placeholders (variants #1/#2/#6-9).
 
@@ -9,8 +14,15 @@ Constraints:
   - safety_expected >= 6
   - 2 obscure-system entries for variant #3 (troubleshoot short-circuit)
 
+Input, NOT redistributed here:
+    eval/test_set_data/synthetic_eval/datasets/combined_eval_dataset.json
+    This file is derived from the public evaluation dataset repository
+    (https://github.com/fyp-group18/aircraft-maintenance-rag-eval) and is not
+    included in this repository. Without it the script cannot run; the pilot
+    corpus it produced is shipped instead, at eval/generation/eval_queries.json.
+
 Usage:
-    cd backend && uv run python -m eval.generation.select_eval_queries
+    python -m eval.scripts.select_eval_queries
 """
 
 from __future__ import annotations
@@ -20,8 +32,10 @@ import random
 from collections import Counter
 from pathlib import Path
 
-DATASET_PATH = Path(__file__).parent.parent / "test_set_data" / "synthetic_eval" / "datasets" / "combined_eval_dataset.json"
-OUTPUT_DIR = Path(__file__).parent
+# Repository-relative: eval/scripts/ -> eval/
+_EVAL_ROOT = Path(__file__).resolve().parent.parent
+DATASET_PATH = _EVAL_ROOT / "test_set_data" / "synthetic_eval" / "datasets" / "combined_eval_dataset.json"
+OUTPUT_DIR = _EVAL_ROOT / "generation"
 QUERIES_PATH = OUTPUT_DIR / "eval_queries.json"
 COVERAGE_PATH = OUTPUT_DIR / "eval_queries_coverage.md"
 

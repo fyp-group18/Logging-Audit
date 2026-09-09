@@ -1,22 +1,56 @@
 #!/usr/bin/env python3
 """Human evaluation import — import evaluator verdicts into L3 tables and validate.
 
-Run AFTER both evaluators have completed their assessments.
+Run AFTER the evaluator has completed their assessment.
 
-Reads:
-  eval/results/human_eval/evaluator1_responses.csv
-  eval/results/human_eval/evaluator2_responses.csv
-  eval/results/human_eval/evaluator1_steps.csv
-  eval/results/human_eval/evaluator2_steps.csv
-  eval/results/human_eval/evaluation_data.json (for thread_id / device_id lookup)
+Reads (none of these sheets are redistributed in this repository — they carry
+verbatim response text from copyrighted manuals and production identifiers):
+
+  eval/results/human_eval/evaluator{N}_responses.csv — one row per response:
+      query_id            corpus query identifier, e.g. "EQ-011"
+      response_id         L2 response UUID the verdict attaches to
+      variant             observed trace variant label
+      device_id           aircraft model the query was posed against
+      query_text          the query as executed
+      badge               inline evaluator badge (green | yellow | red | gray)
+      sync_faithfulness   inline faithfulness score in [0, 1], may be empty
+      chunks_retrieved    number of chunks retrieved for the response
+      safety_expected     whether the query was expected to surface safety content
+      notes               free text
+      rec_correctness     pre-computed recommendation shown to the evaluator
+      rec_completeness    pre-computed recommendation shown to the evaluator
+      rec_safety          pre-computed recommendation shown to the evaluator
+      rec_overall         pre-computed recommendation shown to the evaluator
+      rec_reasoning       why the recommendation was made
+      correctness         EVALUATOR VERDICT: correct | partial | incorrect
+      completeness        EVALUATOR VERDICT: complete | partial | incomplete
+      safety_assessment   EVALUATOR VERDICT: present | partial | missing | n_a
+      overall_verdict     EVALUATOR VERDICT: THUMBS_UP | THUMBS_DOWN
+      correction_text     free-text correction, for negative verdicts
+
+  eval/results/human_eval/evaluator{N}_steps.csv — one row per repair step:
+      query_id            corpus query identifier
+      response_id         L2 response UUID
+      step_index          0-based index of the step within the repair plan
+      step_content        the step text as generated
+      rec_verdict         pre-computed recommendation shown to the evaluator
+      rec_reasoning       why the recommendation was made
+      inline_faithful     inline evaluator faithfulness signal for the step
+      inline_grounding    inline grounding label (verbatim | paraphrased | ungrounded)
+      verdict             EVALUATOR VERDICT: ACCEPT | SKIP | MODIFY | INCORRECT
+      correction_text     free-text correction, required for MODIFY and INCORRECT
+      severity            severity tag for the correction
+
+  eval/results/human_eval/evaluation_data.json — full response context, used
+      only for thread_id / device_id lookup.
 
 Writes to DB:
-  step_feedback   — per-step verdicts from both evaluators
-  response_feedback — response-level verdicts from both evaluators
+  step_feedback   — per-step verdicts
+  response_feedback — response-level verdicts
 
 Requires:
   DATABASE_URL env var
-  Two evaluator user UUIDs in the users table (or creates them)
+  Evaluator user UUIDs in the users table (or creates them)
 """
 
 import csv

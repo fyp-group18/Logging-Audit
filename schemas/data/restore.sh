@@ -126,7 +126,7 @@ PYTHON="${PYTHON:-python3}"
 if [ -f "$SCRIPT_REPO_ROOT/.venv/bin/python" ]; then
     PYTHON="$SCRIPT_REPO_ROOT/.venv/bin/python"
 fi
-DATABASE_URL="${DATABASE_URL:-postgresql://postgres:postgrespassword@localhost:5432/$DBNAME}" \
+DATABASE_URL="${DATABASE_URL:-postgresql://postgres:CHANGEME@localhost:5432/$DBNAME}" \
     "$PYTHON" "$SCRIPT_REPO_ROOT/schemas/data/backfill_manifest.py"
 
 echo ""

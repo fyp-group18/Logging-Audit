@@ -519,8 +519,8 @@ def failure_injection() -> dict:
           f"({summary['injected']} injected, {summary['control']} control)")
     print(f"  Failure types: {summary['failure_types_tested']}")
 
-    for label, key in [("Unblinded (Author A)", "unblinded_results"),
-                       ("Blinded (Author B)", "blinded_results")]:
+    for label, key in [("Unblinded (ground truth)", "unblinded_results"),
+                       ("Blinded (blinded evaluator)", "blinded_results")]:
         r = summary[key]
         print(f"\n  {label}:")
         print(f"    TP={r['TP']} TN={r['TN']} FP={r['FP']} FN={r['FN']}")

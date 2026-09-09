@@ -1,7 +1,7 @@
 """
 Unblind and score the failure injection experiment.
 
-Reconciles Author A's sealed assignment against Author B's diagnosis log.
+Reconciles the injection designer's sealed assignment against the blinded evaluator's diagnosis log.
 Computes detection metrics (accuracy, precision, recall, F1), per-failure-type
 detection rates, type classification accuracy, and confusion matrices.
 
@@ -39,7 +39,7 @@ def load_ground_truth(assignment_path: Path) -> dict[str, dict]:
 
 
 def load_diagnosis(diagnosis_path: Path) -> dict[str, dict]:
-    """Load Author B's diagnosis log and index by session_id."""
+    """Load the blinded evaluator's diagnosis log and index by session_id."""
     with open(diagnosis_path) as f:
         data = json.load(f)
     return {s["session_id"]: s for s in data["sessions"]}
@@ -107,7 +107,7 @@ def compute_metrics(results: list[dict]) -> dict:
             "rate": len(detected_of_type) / len(injected_of_type) if injected_of_type else None,
         }
 
-    # Type classification accuracy (among TPs: did Author B guess the correct type?)
+    # Type classification accuracy (among TPs: did the blinded evaluator guess the correct type?)
     tp_results = [r for r in results if r["classification"] == "TP"]
     correct_type = sum(
         1 for r in tp_results
@@ -259,11 +259,11 @@ def main() -> None:
     )
     parser.add_argument(
         "--assignment", type=Path, required=True,
-        help="Path to assignments.json (Author A's sealed ground truth)",
+        help="Path to assignments.json (the injection designer's sealed ground truth)",
     )
     parser.add_argument(
         "--diagnosis", type=Path, required=True,
-        help="Path to diagnostic_trace_log.json (Author B's completed form)",
+        help="Path to diagnostic_trace_log.json (the blinded evaluator's completed form)",
     )
     parser.add_argument(
         "--manifest-hash", type=Path, required=True,

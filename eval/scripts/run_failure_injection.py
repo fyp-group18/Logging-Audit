@@ -1,9 +1,9 @@
 """
-Orchestrate the failure injection protocol (Author A).
+Orchestrate the failure injection protocol (injection designer).
 
 Three phases:
   1. Apply — read injection configs, apply mutations via apply_injection
-  2. Pause — wait for Author B to complete diagnosis
+  2. Pause — wait for the blinded evaluator to complete diagnosis
   3. Revert — restore all mutations from backups
 
 Usage:
@@ -74,15 +74,15 @@ def phase_apply(db_url: str, configs: list[dict], backups_path: Path) -> list[di
 
 
 def phase_pause() -> None:
-    """Phase 2: Wait for Author B to complete diagnosis."""
+    """Phase 2: Wait for the blinded evaluator to complete diagnosis."""
     print(f"\n{'='*60}")
     print("PHASE 2: AWAITING AUTHOR B DIAGNOSIS")
     print(f"{'='*60}\n")
     print("  All injections applied.")
-    print("  Author B may now run the audit metric suite on all 12 sessions.")
-    print("  Author B should fill in diagnostic_trace_log_template.json")
+    print("  The blinded evaluator may now run the audit metric suite on all 12 sessions.")
+    print("  The blinded evaluator should fill in diagnostic_trace_log_template.json")
     print("  and save as diagnostic_trace_log.json in the experiment directory.\n")
-    input("  Press Enter when Author B has completed diagnosis... ")
+    input("  Press Enter when the blinded evaluator has completed diagnosis... ")
 
 
 def phase_revert(db_url: str, backups: list[dict]) -> None:
@@ -114,7 +114,7 @@ def phase_revert(db_url: str, backups: list[dict]) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Orchestrate failure injection protocol (Author A)"
+        description="Orchestrate failure injection protocol (injection designer)"
     )
     parser.add_argument(
         "--config-dir", type=Path, required=True,

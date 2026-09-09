@@ -618,7 +618,7 @@ def run_diagnostics(db_url: str, config_dir: Path, output_path: Path) -> None:
 
     # Write output
     output = {
-        "evaluator": "Author A (automated observations, manual judgment pending)",
+        "evaluator": "blinded evaluator",
         "manifest_hash": template.get("manifest_hash", ""),
         "evaluation_date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
         "sessions": sessions_out,

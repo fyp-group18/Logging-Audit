@@ -1,18 +1,18 @@
 """
 Randomize failure injection assignments for the double-blind protocol.
 
-Author A runs this script to:
+The injection designer runs this script to:
 1. Split 12 sessions into 6 injection + 6 control (non-reproducible seed)
 2. Assign failure types with constraints (all 4 types used, safety chunk_deletion)
 3. Query DB for concrete injection targets per session
 4. Output sealed experiment artifacts
 
 Outputs:
-    assignments.json         — Author A only (ground truth)
+    assignments.json         — injection designer only (ground truth)
     manifest_sha256.txt      — Both authors (tamper evidence)
-    session_order.json       — Author B only (randomized session list)
-    injection_configs/       — Author A only (per-session configs)
-    diagnostic_trace_log_template.json — Author B (blank diagnosis form)
+    session_order.json       — blinded evaluator only (randomized session list)
+    injection_configs/       — injection designer only (per-session configs)
+    diagnostic_trace_log_template.json — blinded evaluator (blank diagnosis form)
 
 Usage:
     cd backend && uv run python -m eval.scripts.randomize_failures \
@@ -297,7 +297,7 @@ def write_outputs(assignments: dict, out_dir: Path) -> None:
     configs_dir = out_dir / "injection_configs"
     configs_dir.mkdir(exist_ok=True)
 
-    # 1. assignments.json — Author A only
+    # 1. assignments.json — injection designer only
     assignments_path = out_dir / "assignments.json"
     assignments_json = json.dumps(assignments, indent=2, default=str)
     assignments_path.write_text(assignments_json)
@@ -310,9 +310,9 @@ def write_outputs(assignments: dict, out_dir: Path) -> None:
     print(f"  Written: {manifest_path}")
     print(f"  SHA-256: {sha256}")
 
-    # 3. session_order.json — Author B only (no group labels)
+    # 3. session_order.json — blinded evaluator only (no group labels)
     all_sessions = assignments["sessions"]
-    # Shuffle session order for Author B (use a fresh random to avoid correlation)
+    # Shuffle session order for the blinded evaluator (use a fresh random to avoid correlation)
     import random
 
     session_order = [
@@ -339,9 +339,9 @@ def write_outputs(assignments: dict, out_dir: Path) -> None:
         config_path.write_text(json.dumps(config_data, indent=2, default=str))
     print(f"  Written: {len([e for e in all_sessions if e['group'] == 'injection'])} injection configs")
 
-    # 5. diagnostic_trace_log_template.json — Author B
+    # 5. diagnostic_trace_log_template.json — blinded evaluator
     template = {
-        "evaluator": "Author B",
+        "evaluator": "blinded evaluator",
         "manifest_hash": sha256,
         "evaluation_date": "",
         "sessions": [
@@ -378,7 +378,7 @@ def write_outputs(assignments: dict, out_dir: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Randomize failure injection assignments (Author A)"
+        description="Randomize failure injection assignments (injection designer)"
     )
     parser.add_argument(
         "--sessions", type=Path, required=True,

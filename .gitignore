@@ -1,0 +1,40 @@
+__pycache__/
+*.pyc
+.env
+.env.*
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+.DS_Store
+.idea/
+.vs/
+.claude/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Editor and OS backup files
+*.bak
+*.orig
+*~
+
+# Raw evaluation artifacts. The computed metrics under eval/results/metrics/
+# and the redacted run log are the redistributable outputs and are tracked.
+eval/results/*
+!eval/results/metrics/
+!eval/results/eval_run_v2_redacted.json
+eval/scripts/overhead_no_audit.json
+eval/scripts/overhead_with_audit.json
+failure_injection_figure_data.json
+
+# Credentials
+credentials.json
+
+# Internal working documents — not part of the public release
+CAMERA_READY_CONTEXT.md
+RELEASE_AUDIT.md
+
+# Logs
+*.log

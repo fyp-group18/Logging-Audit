@@ -1,0 +1,39 @@
+cff-version: 1.2.0
+message: "If you use this software or its evaluation artifacts, please cite the paper below."
+title: "Cross-Layer Provenance for Agentic RAG: Preserving Identity Continuity Across Ingestion, Execution, and Feedback"
+abstract: >-
+  Evaluation scripts, metric computation code, and the LangGraph diagnostic
+  system used to evaluate a cross-layer provenance architecture for agentic RAG.
+authors:
+  - family-names: Ling
+    given-names: Zhi An
+    affiliation: "Swinburne University of Technology Sarawak"
+  - family-names: Jong
+    given-names: Joanne Wan Chuin
+    affiliation: "Swinburne University of Technology Sarawak"
+  - family-names: Ngu
+    given-names: Alfi Diyana Ngu Binti Mohd Faris
+    affiliation: "Swinburne University of Technology Sarawak"
+  - family-names: Chang
+    given-names: Miko May Lee
+    affiliation: "Swinburne University of Technology Sarawak"
+license: MIT
+repository-code: "https://github.com/fyp-group18/Logging-Audit"
+type: software
+preferred-citation:
+  type: conference-paper
+  title: "Cross-Layer Provenance for Agentic RAG: Preserving Identity Continuity Across Ingestion, Execution, and Feedback"
+  authors:
+    - family-names: Ling
+      given-names: Zhi An
+    - family-names: Jong
+      given-names: Joanne Wan Chuin
+    - family-names: Ngu
+      given-names: Alfi Diyana Ngu Binti Mohd Faris
+    - family-names: Chang
+      given-names: Miko May Lee
+  collection-title: "2026 IEEE International Conference on Modern Computing and Artificial Intelligence Technologies (MCAIT)"
+  conference:
+    name: "IEEE MCAIT 2026"
+  year: 2026
+  # doi: add once IEEE Xplore assigns one

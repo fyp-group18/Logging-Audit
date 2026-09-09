@@ -1,0 +1,59 @@
+{
+  "total_feedback": 2771,
+  "responses_with_feedback": 106,
+  "action_distribution": {
+    "INCORRECT": 150,
+    "SKIP": 154,
+    "MODIFY": 5,
+    "ACCEPT": 2462
+  },
+  "corrections": 155,
+  "l2_to_l1_fk_integrity": {
+    "metric_name": "l2_to_l1_fk_integrity",
+    "value": 1.0,
+    "metadata": {
+      "total_links": 5461,
+      "valid_links": 5461,
+      "broken_links": 0
+    }
+  },
+  "l3_to_l2_fk_integrity": {
+    "metric_name": "l3_to_l2_fk_integrity",
+    "value": 0.9994,
+    "metadata": {
+      "total_feedback_steps": 1790,
+      "valid_references": 1789,
+      "broken_references": 1,
+      "out_of_range": 1,
+      "no_eval_record": 0
+    }
+  },
+  "l3_status": "empirically_validated",
+  "human_vs_llm_concordance": {
+    "n": 101,
+    "agreement": 81,
+    "agreement_rate": 0.801980198019802,
+    "badge_source": "evaluator sheet (badge as shown at evaluation time)",
+    "badge_distribution": {
+      "green": 77,
+      "red": 9,
+      "gray": 5,
+      "yellow": 15
+    },
+    "confusion_matrix": {
+      "THUMBS_UP_THUMBS_UP": 65,
+      "THUMBS_UP_THUMBS_DOWN": 8,
+      "THUMBS_DOWN_THUMBS_UP": 12,
+      "THUMBS_DOWN_THUMBS_DOWN": 16
+    },
+    "human_down_llm_up": 12,
+    "human_up_llm_down": 8,
+    "correctness_faithfulness": {
+      "n": 98,
+      "agreement": 91,
+      "agreement_rate": 0.9285714285714286,
+      "high_faith_incorrect": 6
+    }
+  },
+  "recomputed_at": "20260527_095103"
+}

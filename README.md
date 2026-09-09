@@ -191,7 +191,8 @@ Source: `eval/results/metrics/provenance_reconstruction.json`.
 | KB-Recon@*t* (AS-AMM-01-000) | 0.9878 |
 | LC@*d* (SC10000AMM, *d*=2) | 0.8550 (1,114/1,303) |
 | LC@*d* (AS-AMM-01-000, *d*=2) | 0.8813 (3,839/4,356) |
-| Process mining fitness | 0.999 (262/264 traces conforming) |
+
+Process-mining fitness is not listed because it is computed from the `agent_execution_logs` table, which is not redistributed; the paper reports it from the original evaluation database.
 
 Notes on how to read this table:
 

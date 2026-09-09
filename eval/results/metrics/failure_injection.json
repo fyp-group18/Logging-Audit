@@ -1,0 +1,144 @@
+{
+  "sessions": 12,
+  "injected": 6,
+  "control": 6,
+  "failure_types": [
+    "chunk_deletion",
+    "score_perturbation",
+    "log_gap",
+    "manifest_tamper"
+  ],
+  "blinded": {
+    "TP": 5,
+    "TN": 5,
+    "FP": 1,
+    "FN": 1,
+    "accuracy": 0.8333,
+    "precision": 0.8333,
+    "recall": 0.8333,
+    "f1": 0.8333,
+    "clopper_pearson_95ci": [
+      0.5158622513140328,
+      0.9791374745399076
+    ]
+  },
+  "unblinded": {
+    "TP": 6,
+    "TN": 6,
+    "FP": 0,
+    "FN": 0,
+    "accuracy": 1.0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "clopper_pearson_95ci": [
+      0.7353515306029488,
+      1.0
+    ]
+  },
+  "per_type_recall_blinded": {
+    "chunk_deletion": "2/2 (100%)",
+    "score_perturbation": "1/1 (100%)",
+    "log_gap": "2/2 (100%)",
+    "manifest_tamper": "0/1 (detected but misattributed to FI-006)"
+  },
+  "per_session": [
+    {
+      "session": "FI-001",
+      "group": "injection",
+      "failure_type": "score_perturbation",
+      "blinded_class": "TP",
+      "blinded_guess": "score_perturbation",
+      "confidence": "high"
+    },
+    {
+      "session": "FI-002",
+      "group": "injection",
+      "failure_type": "chunk_deletion",
+      "blinded_class": "TP",
+      "blinded_guess": "chunk_deletion",
+      "confidence": "high"
+    },
+    {
+      "session": "FI-003",
+      "group": "control",
+      "failure_type": null,
+      "blinded_class": "TN",
+      "blinded_guess": null,
+      "confidence": "high"
+    },
+    {
+      "session": "FI-004",
+      "group": "injection",
+      "failure_type": "log_gap",
+      "blinded_class": "TP",
+      "blinded_guess": "log_gap",
+      "confidence": "high"
+    },
+    {
+      "session": "FI-005",
+      "group": "injection",
+      "failure_type": "manifest_tamper",
+      "blinded_class": "FN",
+      "blinded_guess": null,
+      "confidence": "medium"
+    },
+    {
+      "session": "FI-006",
+      "group": "control",
+      "failure_type": null,
+      "blinded_class": "FP",
+      "blinded_guess": "manifest_tamper",
+      "confidence": "low"
+    },
+    {
+      "session": "FI-007",
+      "group": "control",
+      "failure_type": null,
+      "blinded_class": "TN",
+      "blinded_guess": null,
+      "confidence": "medium"
+    },
+    {
+      "session": "FI-008",
+      "group": "injection",
+      "failure_type": "log_gap",
+      "blinded_class": "TP",
+      "blinded_guess": "log_gap",
+      "confidence": "high"
+    },
+    {
+      "session": "FI-009",
+      "group": "control",
+      "failure_type": null,
+      "blinded_class": "TN",
+      "blinded_guess": null,
+      "confidence": "medium"
+    },
+    {
+      "session": "FI-010",
+      "group": "control",
+      "failure_type": null,
+      "blinded_class": "TN",
+      "blinded_guess": null,
+      "confidence": "high"
+    },
+    {
+      "session": "FI-011",
+      "group": "injection",
+      "failure_type": "chunk_deletion",
+      "blinded_class": "TP",
+      "blinded_guess": "chunk_deletion",
+      "confidence": "high"
+    },
+    {
+      "session": "FI-012",
+      "group": "control",
+      "failure_type": null,
+      "blinded_class": "TN",
+      "blinded_guess": null,
+      "confidence": "medium"
+    }
+  ],
+  "key_finding": "Three of four failure types achieve perfect blinded detection. manifest_tamper is detectable (hash chain break surfaced) but not attributable per-session due to document-level blast radius affecting 8/12 sessions identically."
+}

@@ -338,7 +338,7 @@ def feedback_chain_validation(conn, results: list[dict]) -> dict:
     print(f"\n  Documents traced from corrections: {len(traced_docs)} — {traced_docs}")
 
     # ── Human-vs-LLM Concordance ──────────────────────────────
-    concordance = _compute_human_vs_llm_concordance(results)
+    concordance = _compute_human_vs_llm_concordance()
 
     # ── Save ──────────────────────────────────────────────────
     exp2 = {
@@ -363,8 +363,16 @@ def feedback_chain_validation(conn, results: list[dict]) -> dict:
     return exp2
 
 
-def _compute_human_vs_llm_concordance(results: list[dict]) -> dict | None:
-    """Compare Evaluator 1 human verdicts against InlineEvaluator badge/scores."""
+def _compute_human_vs_llm_concordance() -> dict | None:
+    """Compare Evaluator 1 human verdicts against the inline evaluator.
+
+    Both sides are read from the evaluator sheet, not from the run log. The
+    sheet records the badge and faithfulness score as they were shown to the
+    evaluator at evaluation time; the run log was rewritten by later reruns and
+    disagrees with the sheet on 9 of the 101 compared responses. Scoring
+    against the run log would compare the human verdict with an inline verdict
+    the evaluator never saw.
+    """
     print(f"\nHuman-vs-LLM Concordance (Evaluator 1 vs InlineEvaluator):")
 
     e1_path = HUMAN_EVAL_DIR / "evaluator1_responses.csv"
@@ -373,32 +381,30 @@ def _compute_human_vs_llm_concordance(results: list[dict]) -> dict | None:
         return None
 
     with open(e1_path) as f:
-        e1_rows = {r["query_id"]: r for r in csv.DictReader(f)}
+        e1_rows = list(csv.DictReader(f))
 
-    results_map = {r["query_id"]: r for r in results}
-
-    # Map human overall_verdict to binary
-    # Map LLM badge to binary: green → THUMBS_UP, yellow/red → THUMBS_DOWN
+    # green → THUMBS_UP; yellow and red → THUMBS_DOWN. A "gray" badge means the
+    # inline evaluator returned no verdict, so the response has no LLM side to
+    # compare against and is excluded from the pairing.
     badge_to_binary = {"green": "THUMBS_UP", "yellow": "THUMBS_DOWN", "red": "THUMBS_DOWN"}
 
+    badge_dist = Counter((r.get("badge") or "").strip() for r in e1_rows)
+    print(f"  Badge distribution (sheet): {dict(badge_dist)}")
+
     pairs = []
-    for qid, e1 in e1_rows.items():
-        human_verdict = e1.get("overall_verdict")
-        r = results_map.get(qid)
-        if not r or not human_verdict:
+    for row in e1_rows:
+        human_verdict = (row.get("overall_verdict") or "").strip()
+        badge = (row.get("badge") or "").strip()
+        if not human_verdict or badge not in badge_to_binary:
             continue
-        badge = r.get("badge")
-        if badge not in badge_to_binary:
-            continue
-        llm_verdict = badge_to_binary[badge]
+        faithfulness = (row.get("sync_faithfulness") or "").strip()
         pairs.append({
-            "query_id": qid,
+            "query_id": row["query_id"],
             "human": human_verdict,
             "llm_badge": badge,
-            "llm_binary": llm_verdict,
-            "agree": human_verdict == llm_verdict,
-            "faithfulness": r.get("sync_faithfulness"),
-            "relevance": r.get("sync_answer_relevance"),
+            "llm_binary": badge_to_binary[badge],
+            "agree": human_verdict == badge_to_binary[badge],
+            "faithfulness": float(faithfulness) if faithfulness else None,
         })
 
     if not pairs:
@@ -407,11 +413,10 @@ def _compute_human_vs_llm_concordance(results: list[dict]) -> dict | None:
 
     n = len(pairs)
     agree = sum(1 for p in pairs if p["agree"])
-    disagree = n - agree
 
     print(f"  Comparable pairs: {n}")
     print(f"  Agreement: {agree}/{n} = {100 * agree / n:.1f}%")
-    print(f"  Disagreement: {disagree}/{n}")
+    print(f"  Disagreement: {n - agree}/{n}")
 
     # Confusion matrix: rows = human, cols = LLM
     cm = defaultdict(int)
@@ -421,57 +426,45 @@ def _compute_human_vs_llm_concordance(results: list[dict]) -> dict | None:
     print(f"\n  Confusion matrix (Human × LLM):")
     print(f"  {'':>20} {'LLM_UP':>10} {'LLM_DOWN':>10}")
     for hv in ["THUMBS_UP", "THUMBS_DOWN"]:
-        up = cm.get((hv, "THUMBS_UP"), 0)
-        down = cm.get((hv, "THUMBS_DOWN"), 0)
-        print(f"  {'Human_' + hv.split('_')[1]:>20} {up:>10} {down:>10}")
+        print(f"  {'Human_' + hv.split('_')[1]:>20} "
+              f"{cm.get((hv, 'THUMBS_UP'), 0):>10} {cm.get((hv, 'THUMBS_DOWN'), 0):>10}")
 
-    # Disagreement analysis: which cases does human say DOWN but LLM says UP?
     human_down_llm_up = [p for p in pairs if p["human"] == "THUMBS_DOWN" and p["llm_binary"] == "THUMBS_UP"]
     human_up_llm_down = [p for p in pairs if p["human"] == "THUMBS_UP" and p["llm_binary"] == "THUMBS_DOWN"]
 
     print(f"\n  Human DOWN, LLM UP (LLM too lenient): {len(human_down_llm_up)}")
     for p in human_down_llm_up[:5]:
-        print(f"    {p['query_id']}: badge={p['llm_badge']}, "
-              f"faith={p['faithfulness']}, rel={p['relevance']}")
-
+        print(f"    {p['query_id']}: badge={p['llm_badge']}, faith={p['faithfulness']}")
     print(f"  Human UP, LLM DOWN (LLM too strict): {len(human_up_llm_down)}")
     for p in human_up_llm_down[:5]:
-        print(f"    {p['query_id']}: badge={p['llm_badge']}, "
-              f"faith={p['faithfulness']}, rel={p['relevance']}")
+        print(f"    {p['query_id']}: badge={p['llm_badge']}, faith={p['faithfulness']}")
 
-    # Per-dimension concordance: correctness vs faithfulness threshold
+    # Per-dimension concordance: human correctness vs the faithfulness score.
     correct_faith = []
-    for qid, e1 in e1_rows.items():
-        r = results_map.get(qid)
-        if not r or not e1.get("correctness"):
+    for row in e1_rows:
+        correctness = (row.get("correctness") or "").strip()
+        faithfulness = (row.get("sync_faithfulness") or "").strip()
+        if not correctness or not faithfulness:
             continue
-        faith = r.get("sync_faithfulness")
-        if faith is None:
-            continue
+        faith = float(faithfulness)
         correct_faith.append({
-            "query_id": qid,
-            "human_correctness": e1["correctness"],
+            "query_id": row["query_id"],
             "faithfulness": faith,
             # correct/partial → faithful (≥0.7), incorrect → unfaithful (<0.7)
             "llm_faithful": faith >= 0.7,
-            "human_correct": e1["correctness"] in ("correct", "partial"),
+            "human_correct": correctness in ("correct", "partial"),
         })
 
+    dim_agree = faith_high_incorrect = None
     if correct_faith:
-        dim_agree = sum(
-            1 for p in correct_faith
-            if p["llm_faithful"] == p["human_correct"]
-        )
+        dim_agree = sum(1 for p in correct_faith if p["llm_faithful"] == p["human_correct"])
+        faith_high_incorrect = [
+            p for p in correct_faith if p["llm_faithful"] and not p["human_correct"]
+        ]
         print(f"\n  Correctness-vs-Faithfulness concordance:")
         print(f"    Pairs: {len(correct_faith)}")
         print(f"    Agreement: {dim_agree}/{len(correct_faith)} "
               f"= {100 * dim_agree / len(correct_faith):.1f}%")
-
-        # Cases where faithfulness ≥ 0.7 but human says incorrect
-        faith_high_incorrect = [
-            p for p in correct_faith
-            if p["llm_faithful"] and not p["human_correct"]
-        ]
         print(f"    High faithfulness but human=incorrect: {len(faith_high_incorrect)}")
         for p in faith_high_incorrect[:5]:
             print(f"      {p['query_id']}: faithfulness={p['faithfulness']}")
@@ -480,6 +473,8 @@ def _compute_human_vs_llm_concordance(results: list[dict]) -> dict | None:
         "n": n,
         "agreement": agree,
         "agreement_rate": agree / n,
+        "badge_source": "evaluator sheet (badge as shown at evaluation time)",
+        "badge_distribution": dict(badge_dist),
         "confusion_matrix": {f"{h}_{l}": cm.get((h, l), 0)
                              for h in ["THUMBS_UP", "THUMBS_DOWN"]
                              for l in ["THUMBS_UP", "THUMBS_DOWN"]},
@@ -487,9 +482,9 @@ def _compute_human_vs_llm_concordance(results: list[dict]) -> dict | None:
         "human_up_llm_down": len(human_up_llm_down),
         "correctness_faithfulness": {
             "n": len(correct_faith),
-            "agreement": dim_agree if correct_faith else None,
-            "agreement_rate": dim_agree / len(correct_faith) if correct_faith else None,
-            "high_faith_incorrect": len(faith_high_incorrect) if correct_faith else None,
+            "agreement": dim_agree,
+            "agreement_rate": dim_agree / len(correct_faith),
+            "high_faith_incorrect": len(faith_high_incorrect),
         } if correct_faith else None,
     }
 

@@ -274,7 +274,18 @@ Feedback-chain resolution:
 | L2→L1 (response → chunk → manifest) | 5,461/5,461 valid |
 | L3→L2 (step feedback → evaluation record) | 1,789/1,790 (99.94%), one out-of-range step index |
 
-Human–LLM concordance across 101 paired response-level assessments was 80.2% (81/101), and correctness-versus-faithfulness agreement was 92.9% (91/98).
+### Human–LLM concordance
+
+Human–LLM concordance across 101 paired response-level assessments was **80.2% (81/101)**:
+
+| | LLM positive | LLM negative |
+|---|---|---|
+| **Human positive** | 65 | 8 |
+| **Human negative** | 12 | 16 |
+
+Correctness-versus-faithfulness agreement was 92.9% (91/98), with 6 false-faithful cases where a high faithfulness score did not correspond to human-judged correctness.
+
+Concordance is computed against **the badge shown to the evaluator at evaluation time** — the `badge` and `sync_faithfulness` columns of the evaluator sheet — not against the run log. The two disagree on 9 of the 101 compared responses, because the run log was rewritten by later reruns; scoring against it would compare the human verdict with an inline verdict the evaluator never saw. Badges map green → positive and yellow/red → negative; the 5 responses whose badge is `gray` (no inline verdict) have no LLM side and are excluded, giving 101 pairs from 106 assessed responses.
 
 The evaluation harness presented each response with retrieved chunks, inline evaluation verdicts, and a pre-computed recommendation; the evaluator confirmed or overrode each recommendation. The concordance figure should therefore be read as an override-adjusted agreement rate, not as blind agreement. As a single-evaluator design, no inter-rater reliability is reported; this is documented as a limitation in the paper.
 
